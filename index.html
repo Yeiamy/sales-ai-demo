@@ -2,69 +2,283 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SalesAI Pro - Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SalesAI Pro - B2B 智慧銷售系統</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; background-color: #080f1e; font-family: 'Noto Sans TC', sans-serif; color: #e2eaff; -webkit-tap-highlight-color: transparent; }
-        .tab-btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; background: transparent; color: #8da3c8; font-size: 13px; white-space: nowrap; transition: all 0.2s; }
-        .tab-btn.active { background: linear-gradient(135deg,#2a4a8a,#1a3a7a); color: #7eb3ff; border: 1px solid rgba(99,160,255,0.35); }
-        .kpi-card { background: #0d1829; border: 1px solid rgba(99,160,255,0.15); border-radius: 12px; padding: 16px; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        body { margin: 0; padding: 0; background-color: #080f1e; }
+        /* 隱藏滾動條但保留功能 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0d1829; }
+        ::-webkit-scrollbar-thumb { background: #2a4a8a; border-radius: 10px; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script>
-        // --- 預先編譯後的程式碼 ---
-        const { useState, useEffect, useRef } = React;
-        const e = React.createElement;
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
 
-        // 資料集
+        // --- 原始資料定義 ---
         const PRODUCTS = [
-            { name: "企業雲端 ERP 系統", price: "NT$ 48萬", tag: "軟體", desc: "適合中大型企業的全方位 ERP 解決方案" },
-            { name: "智慧倉儲管理模組", price: "NT$ 18萬", tag: "軟體", desc: "WMS 整合條碼/RFID，提升效率" },
-            { name: "AI 客服機器人平台", price: "NT$ 10萬", tag: "AI服務", desc: "24/7 自動回覆，多語支援" }
+            { name: "企業雲端 ERP 系統", price: "NT$ 48萬", tag: "軟體", desc: "適合中大型企業的全方位 ERP 解決方案，模組化設計" },
+            { name: "智慧倉儲管理模組", price: "NT$ 18萬", tag: "軟體", desc: "WMS 整合條碼/RFID，提升倉儲效率達 40%" },
+            { name: "AI 客服機器人平台", price: "NT$ 10萬", tag: "AI服務", desc: "24/7 自動回覆，支援多語言與多渠道整合" },
+            { name: "數據分析儀表板", price: "NT$ 6萬", tag: "BI工具", desc: "即時商業智慧，支援自定義報表與預警通知" },
+            { name: "供應鏈可視化平台", price: "NT$ 32萬", tag: "整合服務", desc: "全鏈路追蹤，整合上下游夥伴數據即時共享" },
+            { name: "智慧銷售預測模組", price: "NT$ 15萬", tag: "AI服務", desc: "AI 驅動需求預測，準確率 >85%，降低庫存成本" },
         ];
 
-        // 簡化版介面組件
+        const CUSTOMERS = [
+            { id: "C001", name: "台積電供應鏈部", industry: "半導體", contact: "陳經理", amount: "120萬", stage: "成交" },
+            { id: "C002", name: "統一超商數位部", industry: "零售", contact: "林副理", amount: "48萬", stage: "提案中" },
+            { id: "C003", name: "長榮海運IT部", industry: "物流", contact: "王主任", amount: "72萬", stage: "評估中" },
+            { id: "C004", name: "富邦金控科技部", industry: "金融", contact: "張協理", amount: "95萬", stage: "初接觸" },
+            { id: "C005", name: "鴻海精密工業", industry: "製造業", contact: "李處長", amount: "200萬", stage: "提案中" },
+        ];
+
+        const CHART_DATA = [
+            { month: "10月", val: 820, h: 66 },
+            { month: "11月", val: 940, h: 76 },
+            { month: "12月", val: 760, h: 61 },
+            { month: "1月",  val: 1050, h: 85 },
+            { month: "2月",  val: 890, h: 72 },
+            { month: "3月",  val: 1240, h: 100 },
+        ];
+
+        // --- 樣式助手 ---
+        const stageColor = (s) => ({
+            "成交": { bg: "rgba(45,212,168,0.15)", color: "#2dd4a8", border: "rgba(45,212,168,0.3)" },
+            "提案中": { bg: "rgba(79,142,247,0.15)", color: "#7eb3ff", border: "rgba(79,142,247,0.3)" },
+            "評估中": { bg: "rgba(245,166,35,0.15)", color: "#f5a623", border: "rgba(245,166,35,0.3)" },
+            "初接觸": { bg: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "rgba(167,139,250,0.3)" },
+        }[s] || { bg: "#222", color: "#aaa", border: "#444" });
+
+        const tagColor = (t) => ({
+            "軟體": { bg: "rgba(79,142,247,0.15)", color: "#7eb3ff", border: "rgba(79,142,247,0.3)" },
+            "AI服務": { bg: "rgba(45,212,168,0.15)", color: "#2dd4a8", border: "rgba(45,212,168,0.3)" },
+            "BI工具": { bg: "rgba(245,166,35,0.15)", color: "#f5a623", border: "rgba(245,166,35,0.3)" },
+            "整合服務": { bg: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "rgba(167,139,250,0.3)" },
+        }[t] || { bg: "#222", color: "#aaa", border: "#444" });
+
+        // --- 子組件 ---
+        function Badge({ label, style }) {
+            const s = style || stageColor(label);
+            return (
+                <span style={{
+                    padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 500,
+                    background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap",
+                }}>{label}</span>
+            );
+        }
+
+        function Dashboard() {
+            const kpis = [
+                { label: "💰 近6月營收", val: "5700萬", color: "#7eb3ff" },
+                { label: "🎯 潛在客戶數", val: "244",   color: "#a78bfa" },
+                { label: "✅ 成交案件",   val: "67",    color: "#2dd4a8" },
+                { label: "📈 成交率",     val: "27%",   color: "#f5a623" },
+            ];
+            return (
+                <div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                        {kpis.map(k => (
+                            <div key={k.label} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16 }}>
+                                <div style={{ fontSize: 11, color: "#4a6080", marginBottom: 6 }}>{k.label}</div>
+                                <div style={{ fontFamily: "monospace", fontSize: 26, fontWeight: 700, color: k.color }}>{k.val}</div>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 14 }}>📊 月度營收趨勢</div>
+                        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110 }}>
+                            {CHART_DATA.map((d, i) => {
+                                const isLast = i === CHART_DATA.length - 1;
+                                return (
+                                    <div key={d.month} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, gap: 4 }}>
+                                        <div style={{ fontSize: 9, color: isLast ? "#2dd4a8" : "#4a6080", textAlign: "center" }}>{d.val}萬</div>
+                                        <div style={{
+                                            width: "100%", height: `${d.h}%`,
+                                            background: isLast ? "linear-gradient(180deg,#2dd4a8,#1a7a5a)" : "linear-gradient(180deg,#4f8ef7,#2a4a9a)",
+                                            borderRadius: "3px 3px 0 0",
+                                        }} />
+                                        <div style={{ fontSize: 10, color: "#4a6080" }}>{d.month}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <div style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>🔥 本月重點客戶</div>
+                        {CUSTOMERS.slice(0, 3).map((c, i) => (
+                            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: i < 2 ? "1px solid rgba(99,160,255,0.1)" : "none" }}>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 13 }}>{c.name}</div>
+                                    <div style={{ fontSize: 11, color: "#4a6080", marginTop: 2 }}>{c.industry} · {c.contact}</div>
+                                </div>
+                                <Badge label={c.stage} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function Customers() {
+            const [modal, setModal] = useState(null);
+            const [recs, setRecs] = useState(null);
+
+            function openRec(c) {
+                setModal(c);
+                setRecs(null);
+                // 模擬 AI 分析延遲
+                setTimeout(() => {
+                    setRecs([
+                        { product: "企業雲端 ERP 系統", price: "NT$ 48萬", reason: `針對${c.industry}業優化流程，提升協作效率。` },
+                        { product: "數據分析儀表板", price: "NT$ 6萬", reason: "即時監控關鍵 KPI，支援數位轉型決策。" },
+                    ]);
+                }, 800);
+            }
+
+            return (
+                <div>
+                    <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 12 }}>👥 客戶管理</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {CUSTOMERS.map(c => (
+                            <div key={c.id} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 10, padding: 14, display: "flex", alignItems: "flex-start", gap: 12 }}>
+                                <div style={{ fontFamily: "monospace", fontSize: 11, color: "#4f8ef7", minWidth: 36, paddingTop: 2 }}>{c.id}</div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{c.name}</div>
+                                    <div style={{ fontSize: 11, color: "#4a6080" }}>{c.industry} · {c.contact}</div>
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                                    <div style={{ fontFamily: "monospace", fontSize: 13, color: "#2dd4a8", fontWeight: 700 }}>{c.amount}</div>
+                                    <Badge label={c.stage} />
+                                    <button onClick={() => openRec(c)} style={{
+                                        background: "linear-gradient(135deg,#1a2a4a,#2a3a6a)", border: "1px solid rgba(99,160,255,0.4)",
+                                        borderRadius: 8, padding: "5px 10px", fontSize: 11, color: "#7eb3ff", cursor: "pointer",
+                                    }}>✦ AI 推薦</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {modal && (
+                        <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                            <div onClick={e => e.stopPropagation()} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.2)", borderRadius: 16, padding: 20, width: "100%", maxWidth: 360 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                                    <span style={{ fontSize: 15, fontWeight: 500 }}>✦ AI 產品推薦</span>
+                                    <button onClick={() => setModal(null)} style={{ background: "none", border: "none", color: "#4a6080", fontSize: 20, cursor: "pointer" }}>×</button>
+                                </div>
+                                <div style={{ fontSize: 12, color: "#4a6080", marginBottom: 12 }}>為 <strong>{modal.name}</strong> 推薦</div>
+                                {!recs ? <div style={{ color: "#4a6080", fontSize: 13 }}>AI 分析中...</div> : recs.map((r, i) => (
+                                    <div key={i} style={{ background: "#111f35", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{r.product}</div>
+                                        <div style={{ fontSize: 12, color: "#8da3c8" }}>{r.reason}</div>
+                                        <div style={{ fontFamily: "monospace", fontSize: 12, color: "#2dd4a8", marginTop: 6 }}>{r.price}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function Products() {
+            return (
+                <div>
+                    <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 12 }}>📦 產品目錄</div>
+                    {PRODUCTS.map(p => {
+                        const tc = tagColor(p.tag);
+                        return (
+                            <div key={p.name} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                                    <div>
+                                        <span style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11, background: tc.bg, color: tc.color, border: `1px solid ${tc.border}` }}>{p.tag}</span>
+                                        <div style={{ fontSize: 15, fontWeight: 500, marginTop: 6 }}>{p.name}</div>
+                                    </div>
+                                    <div style={{ fontFamily: "monospace", fontSize: 15, color: "#2dd4a8", fontWeight: 700 }}>{p.price}</div>
+                                </div>
+                                <div style={{ fontSize: 12, color: "#4a6080" }}>{p.desc}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        function AIChat() {
+            const [msgs, setMsgs] = useState([
+                { role: "assistant", text: "您好！我是您的 AI 銷售助理 🤖\n\n我可以幫您：\n· 分析銷售數據\n· 推薦合適產品\n· 生成開發信範本" }
+            ]);
+            const [input, setInput] = useState("");
+
+            function send() {
+                if (!input.trim()) return;
+                const newMsgs = [...msgs, { role: "user", text: input }];
+                setMsgs(newMsgs);
+                setInput("");
+                // 模擬回覆
+                setTimeout(() => {
+                    setMsgs([...newMsgs, { role: "assistant", text: "收到！正在根據您的要求進行分析... (這是一個展示原型，後台 API 目前為模擬狀態)" }]);
+                }, 600);
+            }
+
+            return (
+                <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 180px)" }}>
+                    <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+                        {msgs.map((m, i) => (
+                            <div key={i} style={{ 
+                                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                                background: m.role === "user" ? "#2a4a8a" : "#111f35",
+                                padding: "10px 14px", borderRadius: 12, maxWidth: "85%", fontSize: 13, lineHeight: 1.5,
+                                border: "1px solid rgba(99,160,255,0.15)"
+                            }}>{m.text}</div>
+                        ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} style={{ flex: 1, background: "#111f35", border: "1px solid rgba(99,160,255,0.2)", borderRadius: 10, padding: 10, color: "white", outline: "none" }} placeholder="問問 AI..." />
+                        <button onClick={send} style={{ background: "#4f8ef7", border: "none", color: "white", padding: "0 16px", borderRadius: 10, cursor: "pointer" }}>發送</button>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- 主程式 ---
         function App() {
             const [tab, setTab] = useState("dashboard");
+            return (
+                <div style={{ fontFamily: "'Noto Sans TC', sans-serif", background: "#080f1e", color: "#e2eaff", minHeight: "100vh" }}>
+                    <div style={{ padding: "16px", background: "#0d1829", borderBottom: "1px solid rgba(99,160,255,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ fontWeight: 700, fontSize: 18, color: "#7eb3ff" }}>⚡ SalesAI <span style={{ color: "#2dd4a8" }}>Pro</span></div>
+                        <div style={{ fontSize: 11, color: "#2dd4a8" }}>● AI 已連線</div>
+                    </div>
 
-            return e('div', { style: { minHeight: '100vh' } },
-                // Header
-                e('div', { style: { padding: '12px 16px', background: '#0d1829', borderBottom: '1px solid rgba(99,160,255,0.15)', display: 'flex', justifyContent: 'space-between' } },
-                    e('div', { style: { fontWeight: '700', fontSize: '18px', color: '#7eb3ff' } }, "⚡ SalesAI Pro"),
-                    e('div', { style: { fontSize: '11px', color: '#2dd4a8' } }, "● AI 已連線")
-                ),
-                // Tabs
-                e('div', { style: { display: 'flex', gap: '8px', padding: '12px', background: '#0d1829', overflowX: 'auto' } },
-                    ['dashboard', 'customers', 'products', 'ai'].map(id => 
-                        e('button', {
-                            key: id,
-                            className: `tab-btn ${tab === id ? 'active' : ''}`,
-                            onClick: () => setTab(id)
-                        }, id === 'dashboard' ? '📊 儀表板' : id === 'customers' ? '👥 客戶' : id === 'products' ? '📦 產品' : '🤖 AI')
-                    )
-                ),
-                // Content
-                e('div', { style: { padding: '16px' } },
-                    tab === 'dashboard' && e('div', null, 
-                        e('div', { className: 'kpi-card' }, 
-                            e('div', { style: { fontSize: '11px', color: '#4a6080' } }, "💰 近6月營收"),
-                            e('div', { style: { fontSize: '26px', fontWeight: '700', color: '#7eb3ff' } }, "5700萬")
-                        )
-                    ),
-                    tab !== 'dashboard' && e('div', { style: { textAlign: 'center', marginTop: '40px', color: '#4a6080' } }, "此分頁在手機優化版中正常運作...")
-                )
+                    <div style={{ display: "flex", gap: 8, padding: "12px", background: "#0d1829", overflowX: "auto" }}>
+                        {[ {id: "dashboard", label: "📊 儀表板"}, {id: "customers", label: "👥 客戶"}, {id: "products", label: "📦 產品"}, {id: "ai", label: "🤖 AI"} ].map(t => (
+                            <button key={t.id} onClick={() => setTab(t.id)} style={{
+                                padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                                background: tab === t.id ? "#2a4a8a" : "transparent",
+                                color: tab === t.id ? "white" : "#8da3c8",
+                            }}>{t.label}</button>
+                        ))}
+                    </div>
+
+                    <div style={{ padding: 16 }}>
+                        {tab === "dashboard" && <Dashboard />}
+                        {tab === "customers" && <Customers />}
+                        {tab === "products"  && <Products />}
+                        {tab === "ai"        && <AIChat />}
+                    </div>
+                </div>
             );
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(e(App));
+        root.render(<App />);
     </script>
 </body>
 </html>
