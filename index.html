@@ -10,13 +10,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body { margin: 0; padding: 0; background-color: #080f1e; font-family: 'Noto Sans TC', sans-serif; color: #e2eaff; }
-        ::-webkit-scrollbar { width: 0; height: 0; } /* 隱藏行動端捲動條 */
+        ::-webkit-scrollbar { width: 0; height: 0; }
         .tab-btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; background: transparent; color: #8da3c8; font-size: 13px; white-space: nowrap; }
         .tab-btn.active { background: linear-gradient(135deg,#2a4a8a,#1a3a7a); color: white; border: 1px solid rgba(99,160,255,0.35); }
         .kpi-card { background: #0d1829; border: 1px solid rgba(99,160,255,0.15); border-radius: 12px; padding: 16px; }
-        .progress-list-item { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid rgba(99,160,255,0.1); }
-        .chat-msg { padding: 10px 14px; borderRadius: 12px; maxWidth: 85%; fontSize: 13px; lineHeight: 1.5; border: 1px solid rgba(99,160,255,0.15); }
+        .chat-msg { padding: 10px 14px; border-radius: 12px; max-width: 85%; font-size: 13px; line-height: 1.5; border: 1px solid rgba(99,160,255,0.15); }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .chart-bar { transition: opacity 0.2s; }
+        .chart-bar:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
@@ -25,7 +27,6 @@
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
 
-        // --- 更新為零售通路資料集 ---
         const RETAIL_CHANNELS = [
             { id: "R001", name: "家樂福", type: "量販零售", amount: "NT$ 96 萬", contact: "陳採購經理", desc: "全台 68 門市導入方案", stage: "成交" },
             { id: "R002", name: "Costco 好市多", type: "倉儲量販", amount: "NT$ 120 萬", contact: "林營運協理", desc: "主力通路，2月貢獻366台 (佔當月 72.9%)", stage: "成交" },
@@ -37,12 +38,37 @@
             { id: "R008", name: "名展影音(新竹)", type: "影音零售", amount: "NT$ 32 萬", contact: "陳老闆", desc: "實體店面體驗合作", stage: "提案中" },
         ];
 
-        const CHART_DATA_MOBILE = [
-            { month: "9月", val: 50, h: 10 }, { month: "10月", val: 50, h: 10 }, { month: "11月", val: 50, h: 10 },
-            { month: "12月", val: 50, h: 10 }, { month: "1月",  val: 79, h: 25 }, { month: "2月",  val: 502, h: 100 },
+        // 產品銷售資料 2025/1 ~ 2026/3 (15個月)
+        const MONTHS = ["25/1","25/2","25/3","25/4","25/5","25/6","25/7","25/8","25/9","25/10","25/11","25/12","26/1","26/2","26/3"];
+        const FULL_MONTHS = ["2025/1","2025/2","2025/3","2025/4","2025/5","2025/6","2025/7","2025/8","2025/9","2025/10","2025/11","2025/12","2026/1","2026/2","2026/3"];
+
+        const PRODUCT_DATA = [
+            {
+                key: "karaoke",
+                label: "🎤 家用K歌",
+                color: "#f5c842",
+                colorDim: "rgba(245,200,66,0.15)",
+                border: "rgba(245,200,66,0.4)",
+                values: [194, 79, 42, 60, 54, 51, 61, 51, 60, 43, 44, 41, 77, 506, 29],
+            },
+            {
+                key: "carmic",
+                label: "🎙 車用麥克風",
+                color: "#4ff7c8",
+                colorDim: "rgba(79,247,200,0.15)",
+                border: "rgba(79,247,200,0.4)",
+                values: [0, 0, 0, 0, 0, 0, 0, 21, 8, 15, 7, 11, 18, 20, 12],
+            },
+            {
+                key: "conference",
+                label: "📡 會議機",
+                color: "#7eb3ff",
+                colorDim: "rgba(126,179,255,0.15)",
+                border: "rgba(126,179,255,0.4)",
+                values: [1, 0, 0, 1, 0, 0, 3, 2, 1, 1, 0, 2, 1, 0, 0],
+            },
         ];
 
-        // --- 樣式助手 ---
         const stageColorRetail = (s) => ({
             "成交": { bg: "rgba(45,212,168,0.15)", color: "#2dd4a8", border: "rgba(45,212,168,0.3)" },
             "提案中": { bg: "rgba(79,142,247,0.15)", color: "#7eb3ff", border: "rgba(79,142,247,0.3)" },
@@ -51,7 +77,6 @@
             "初接觸": { bg: "rgba(120,120,120,0.15)", color: "#aaaaaa", border: "rgba(120,120,120,0.3)" },
         }[s] || { bg: "#222", color: "#aaa", border: "#444" });
 
-        // --- 子組件 ---
         function Badge({ label }) {
             const s = stageColorRetail(label);
             return (
@@ -62,13 +87,128 @@
             );
         }
 
+        // ── 產品銷售圖表組件 ──
+        function ProductSalesChart() {
+            const [tooltip, setTooltip] = useState(null);
+            const [activeProduct, setActiveProduct] = useState(null);
+
+            // 各產品最大值（不含異常峰值506，用於視覺比例）
+            const maxKaraoke = 194; // 506 是峰值，用 200 當視覺上限避免壓扁其他月份
+            const visMaxKaraoke = 550;
+            const visMaxCarmic = 25;
+            const visMaxConf = 5;
+
+            const BAR_H = 80; // px bar area height per product
+
+            function barHeight(val, max, areaH) {
+                return Math.max(2, Math.round((val / max) * areaH));
+            }
+
+            return (
+                <div className="kpi-card" style={{ marginBottom: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>📊 產品別銷售趨勢（2025/1 – 2026/3）</div>
+                        <div style={{ display: "flex", gap: 10 }}>
+                            {PRODUCT_DATA.map(p => (
+                                <button key={p.key} onClick={() => setActiveProduct(activeProduct === p.key ? null : p.key)}
+                                    style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, border: `1px solid ${p.border}`, background: activeProduct === p.key ? p.colorDim : "transparent", color: p.color, cursor: "pointer" }}>
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 2025 / 2026 年份分隔線標示 */}
+                    <div style={{ position: "relative" }}>
+                        {PRODUCT_DATA.map((prod, pi) => {
+                            if (activeProduct && activeProduct !== prod.key) return null;
+                            const visMax = pi === 0 ? visMaxKaraoke : pi === 1 ? visMaxCarmic : visMaxConf;
+                            const peak = Math.max(...prod.values);
+                            return (
+                                <div key={prod.key} style={{ marginBottom: 20, animation: "fadeIn 0.4s ease" }}>
+                                    {/* 產品標題 */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                        <div style={{ fontSize: 11, color: prod.color, fontWeight: 600 }}>{prod.label}</div>
+                                        <div style={{ fontSize: 10, color: "#4a6080" }}>總計 {prod.values.reduce((a,b)=>a+b,0)} 台 ｜ 峰值 {peak} 台</div>
+                                    </div>
+                                    {/* 長條圖 */}
+                                    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: BAR_H + 30 }}>
+                                        {prod.values.map((val, mi) => {
+                                            const h = barHeight(val, visMax, BAR_H);
+                                            const isYear2026 = mi >= 12;
+                                            const isPeak = val === peak && val > 0;
+                                            return (
+                                                <div key={mi} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, gap: 2, position: "relative" }}
+                                                    onMouseEnter={() => setTooltip({ prodLabel: prod.label, month: FULL_MONTHS[mi], val })}
+                                                    onMouseLeave={() => setTooltip(null)}>
+                                                    {/* 峰值標示 */}
+                                                    {isPeak && (
+                                                        <div style={{ fontSize: 8, color: prod.color, fontWeight: 700, whiteSpace: "nowrap", marginBottom: 1 }}>{val}</div>
+                                                    )}
+                                                    {!isPeak && val > 0 && (
+                                                        <div style={{ fontSize: 7, color: "rgba(200,220,255,0.45)", marginBottom: 1 }}>{val}</div>
+                                                    )}
+                                                    {!isPeak && val === 0 && (
+                                                        <div style={{ fontSize: 7, color: "transparent", marginBottom: 1 }}>0</div>
+                                                    )}
+                                                    <div className="chart-bar" style={{
+                                                        width: "100%",
+                                                        height: h,
+                                                        background: isPeak
+                                                            ? `linear-gradient(180deg, ${prod.color}, ${prod.color}88)`
+                                                            : val === 0
+                                                                ? "rgba(255,255,255,0.04)"
+                                                                : `linear-gradient(180deg, ${prod.color}aa, ${prod.color}44)`,
+                                                        borderRadius: "3px 3px 0 0",
+                                                        border: isPeak ? `1px solid ${prod.color}` : "none",
+                                                        boxShadow: isPeak ? `0 0 8px ${prod.color}66` : "none",
+                                                        cursor: "pointer",
+                                                    }} />
+                                                    {/* 2025/2026 分隔 */}
+                                                    <div style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                        {mi === 11 && (
+                                                            <div style={{ position: "absolute", right: -4, top: -BAR_H - 20, height: BAR_H + 40, width: 1, background: "rgba(99,160,255,0.3)", zIndex: 1 }} />
+                                                        )}
+                                                        <div style={{ fontSize: 8, color: isYear2026 ? "#4f8ef7" : "#4a6080", whiteSpace: "nowrap" }}>{MONTHS[mi]}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {/* 年份標籤 */}
+                                    <div style={{ display: "flex", fontSize: 9, marginTop: 2 }}>
+                                        <div style={{ flex: 12, color: "#4a6080", borderTop: "1px solid rgba(99,160,255,0.1)", paddingTop: 3, textAlign: "center" }}>── 2025 ──</div>
+                                        <div style={{ flex: 3, color: "#4f8ef7", borderTop: "1px solid rgba(79,142,247,0.3)", paddingTop: 3, textAlign: "center" }}>─ 2026 ─</div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Tooltip */}
+                    {tooltip && (
+                        <div style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", background: "#1a2f50", border: "1px solid rgba(99,160,255,0.3)", borderRadius: 10, padding: "8px 16px", fontSize: 12, color: "#e2eaff", zIndex: 99, pointerEvents: "none", whiteSpace: "nowrap" }}>
+                            <strong>{tooltip.prodLabel}</strong>　{tooltip.month}　<span style={{ color: "#f5c842" }}>{tooltip.val} 台</span>
+                        </div>
+                    )}
+
+                    {/* 圖例 */}
+                    <div style={{ display: "flex", gap: 16, marginTop: 4, paddingTop: 8, borderTop: "1px solid rgba(99,160,255,0.08)", fontSize: 10, color: "#4a6080" }}>
+                        <span>💡 點擊上方標籤可單獨查看各產品</span>
+                        <span>｜ 滑鼠移至長條可查看數值</span>
+                        <span style={{ color: "#4f8ef7" }}>｜ 藍色月份 = 2026年</span>
+                    </div>
+                </div>
+            );
+        }
+
         // --- 儀表板頁面 ---
         function DashboardRetail() {
             const kpis = [
-                { label: "✅ 累計銷售台數", val: "581台", color: "#7eb3ff" },
-                { label: "🏪 合作通路數", val: "8家",   color: "#a78bfa" },
-                { label: "✅ 已成交通路",   val: "2家",    color: "#2dd4a8" },
-                { label: "📈 COSTCO估比",     val: "72.9%",   color: "#f5a623" },
+                { label: "🎤 家用K歌總計", val: "1,392台", color: "#f5c842" },
+                { label: "🎙 車用麥克風", val: "113台", color: "#4ff7c8" },
+                { label: "📡 會議機總計", val: "12台",    color: "#7eb3ff" },
+                { label: "📈 Costco占比", val: "72.9%",   color: "#f5a623" },
             ];
             return (
                 <div>
@@ -87,75 +227,107 @@
                         <div>
                             <div style={{ fontSize: '12px', color: '#2dd4a8', display: 'flex', alignItems: 'center', gap: '4px' }}>🏆 本月明星通路</div>
                             <div style={{ fontSize: '18px', fontWeight: '700', marginTop: '6px' }}>Costco 好市多</div>
-                            <div style={{ fontSize: '12px', color: '#8da3c8', marginTop: '6px', lineHeight: '1.5' }}>2月貢獻 <strong style={{color:'#2dd4a8'}}>366 台</strong>，佔當月總出貨<br/>502 台的 72.9%</div>
+                            <div style={{ fontSize: '12px', color: '#8da3c8', marginTop: '6px', lineHeight: '1.5' }}>2月貢獻 <strong style={{color:'#2dd4a8'}}>366 台</strong>，佔當月總出貨<br/>506 台的 72.9%</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '32px', fontWeight: '700', color: '#2dd4a8' }}>502</div>
+                            <div style={{ fontSize: '32px', fontWeight: '700', color: '#2dd4a8' }}>506</div>
                             <div style={{ fontSize: '12px', color: '#8da3c8' }}>台 / 2026年2月</div>
                         </div>
                     </div>
 
+                    {/* ★ 產品銷售趨勢圖表 */}
+                    <ProductSalesChart />
+
                     {/* 通路銷售進度 */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 12 }}>
-                        {/* 左側：銷售台數圖表 */}
-                        <div className="kpi-card">
-                            <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>📦 月度銷售台數</div>
-                            <div style={{ display: "flex", alignItems: "flex-end", gap: '6px', height: '100px', marginBottom: '10px' }}>
-                                {CHART_DATA_MOBILE.map((d, i) => (
-                                    <div key={d.month} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, gap: '2px' }}>
-                                        <div style={{ fontSize: '9px', color: (i===5?'#2dd4a8':'#4a6080') }}>{d.val===50?'--':d.val+'台'}</div>
-                                        <div style={{
-                                            width: "100%", height: `${d.h}%`,
-                                            background: (i===5 ? "linear-gradient(180deg,#2dd4a8,#1a7a5a)" : i===4 ? "linear-gradient(180deg,#4f8ef7,#2a4a9a)" : "rgba(74,96,128,0.15)"),
-                                            borderRadius: "3px 3px 0 0",
-                                        }} />
-                                        <div style={{ fontSize: '9px', color: '#4a6080' }}>{d.month}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ fontSize: '10px', color: '#4a6080', textAlign: 'center' }}>* 綠色為 Costco 主力月份</div>
-                        </div>
-                        
-                        {/* 右側：通路進度列表 */}
-                        <div className="kpi-card">
-                            <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>🏪 通路銷售進度</div>
-                            {RETAIL_CHANNELS.slice(0, 8).map((c) => (
-                                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid rgba(99,160,255,0.05)' }}>
-                                    <div>
-                                        <div style={{ fontSize: '12px', fontWeight: '500' }}>{c.name}</div>
-                                        <div style={{ fontSize: '10px', color: '#4a6080' }}>{c.type}</div>
-                                    </div>
-                                    <Badge label={c.stage} />
+                    <div className="kpi-card">
+                        <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '14px' }}>🏪 通路銷售進度</div>
+                        {RETAIL_CHANNELS.map((c) => (
+                            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(99,160,255,0.05)' }}>
+                                <div>
+                                    <div style={{ fontSize: '12px', fontWeight: '500' }}>{c.name}</div>
+                                    <div style={{ fontSize: '10px', color: '#4a6080' }}>{c.type}</div>
                                 </div>
-                            ))}
-                        </div>
+                                <Badge label={c.stage} />
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
         }
 
-        // --- AI 助理頁面 (模擬更新後的內容) ---
+        // --- AI 助理頁面 ---
         function AIChatRetail() {
             const [msgs, setMsgs] = useState([
-                { role: "assistant", text: "您好！我是您的 AI 銷售助理 🤖\n\n目前管理 8 個台灣零售通路，包含家樂福、Costco、全國電子、燦坤、順發、車麗屋、民視購物、名展新竹。\n\n📦 1月出貨 79 台，2月共 502 台（Costco 貢獻 366 台，其他通路 136 台）\n\n請問有什麼我可以幫您分析的？" }
+                { role: "assistant", text: "您好！我是您的 AI 銷售助理 🤖\n\n目前管理 8 個台灣零售通路，包含家樂福、Costco、全國電子、燦坤、順發、車麗屋、民視購物、名展新竹。\n\n📦 產品別累計（2025/1–2026/3）：\n🎤 家用K歌：1,392 台（2026/2 峰值 506 台）\n🎙 車用麥克風：113 台（2026/2 峰值 20 台）\n📡 會議機：12 台\n\n請問有什麼我可以幫您分析的？" }
             ]);
             const [input, setInput] = useState("");
+            const [loading, setLoading] = useState(false);
+            const bottomRef = useRef(null);
+
+            useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+
+            async function sendMsg() {
+                const text = input.trim();
+                if (!text || loading) return;
+                setInput("");
+                const newMsgs = [...msgs, { role: "user", text }];
+                setMsgs(newMsgs);
+                setLoading(true);
+                try {
+                    const systemPrompt = `你是 SalesAI Pro 的 AI 銷售助理，協助管理台灣零售通路 B2B 銷售。
+產品別銷售資料（2025/1–2026/3）：
+- 家用K歌：194,79,42,60,54,51,61,51,60,43,44,41,77,506,29 台（2026/2 爆量506台）
+- 車用麥克風：0,0,0,0,0,0,0,21,8,15,7,11,18,20,12 台（2025/8開始出貨）
+- 會議機：1,0,0,1,0,0,3,2,1,1,0,2,1,0,0 台
+通路：家樂福(成交)、Costco(成交,主力)、全國電子(洽談中)、燦坤(提案中)、順發(評估中)、車麗屋(初接觸)、民視購物(洽談中)、名展新竹(提案中)。
+Costco 2026/2 貢獻 366 台，佔當月 72.9%。
+請用繁體中文、簡潔且有見解地回答，針對業務策略給出具體建議。`;
+                    const res = await fetch("https://api.anthropic.com/v1/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            model: "claude-sonnet-4-20250514",
+                            max_tokens: 1000,
+                            system: systemPrompt,
+                            messages: newMsgs.map(m => ({ role: m.role, content: m.text })),
+                        }),
+                    });
+                    const data = await res.json();
+                    const reply = data.content?.[0]?.text || "（無回應）";
+                    setMsgs(prev => [...prev, { role: "assistant", text: reply }]);
+                } catch (e) {
+                    setMsgs(prev => [...prev, { role: "assistant", text: "❌ 連線失敗，請稍後再試。" }]);
+                } finally {
+                    setLoading(false);
+                }
+            }
 
             return (
                 <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 180px)" }}>
                     <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
                         {msgs.map((m, i) => (
-                            <div key={i} style={{ 
-                                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                                background: m.role === "user" ? "linear-gradient(135deg,#2a4a8a,#1a3a7a)" : "#111f35",
-                                color: m.role === "user" ? "white" : "#e2eaff",
-                                className: "chat-msg"
-                            }}><div className="chat-msg">{m.text}</div></div>
+                            <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start" }}>
+                                <div className="chat-msg" style={{
+                                    background: m.role === "user" ? "linear-gradient(135deg,#2a4a8a,#1a3a7a)" : "#111f35",
+                                    color: m.role === "user" ? "white" : "#e2eaff",
+                                    whiteSpace: "pre-wrap",
+                                }}>{m.text}</div>
+                            </div>
                         ))}
+                        {loading && (
+                            <div style={{ alignSelf: "flex-start" }}>
+                                <div className="chat-msg" style={{ background: "#111f35", color: "#4a6080", animation: "pulse 1.2s infinite" }}>AI 思考中...</div>
+                            </div>
+                        )}
+                        <div ref={bottomRef} />
                     </div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12, borderTop: '1px solid #1a3a7a', paddingTop: '12px' }}>
-                        <input value={input} style={{ flex: 1, background: "#111f35", border: "1px solid rgba(99,160,255,0.2)", borderRadius: 10, padding: 10, color: "white", outline: "none" }} placeholder="例：如何讓燦坤盡快成交？" />
-                        <button style={{ background: "#4f8ef7", border: "none", color: "white", padding: "0 16px", borderRadius: 10, cursor: "pointer" }}>發送</button>
+                        <input value={input} onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && sendMsg()}
+                            style={{ flex: 1, background: "#111f35", border: "1px solid rgba(99,160,255,0.2)", borderRadius: 10, padding: 10, color: "white", outline: "none", fontSize: 13 }}
+                            placeholder="例：如何讓燦坤盡快成交？" />
+                        <button onClick={sendMsg} disabled={loading}
+                            style={{ background: loading ? "#2a3a5a" : "#4f8ef7", border: "none", color: "white", padding: "0 16px", borderRadius: 10, cursor: loading ? "not-allowed" : "pointer" }}>發送</button>
                     </div>
                 </div>
             );
@@ -165,33 +337,27 @@
         function App() {
             const [tab, setTab] = useState("dashboard");
             const tabs = [
-                {id: "dashboard", label: "📊 儀表板"}, {id: "customers", label: "🏪 通路管理"}, 
+                {id: "dashboard", label: "📊 儀表板"}, {id: "customers", label: "🏪 通路管理"},
                 {id: "products", label: "📦 產品目錄"}, {id: "ai", label: "🤖 AI 助理"}, {id: "report", label: "📋 銷售報告"}
             ];
-
             return (
                 <div style={{ minHeight: "100vh" }}>
-                    {/* Header */}
                     <div style={{ padding: "12px 16px", background: "#0d1829", borderBottom: "1px solid rgba(99,160,255,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div style={{ fontWeight: 700, fontSize: 18, color: "#7eb3ff" }}>⚡ SalesAI <span style={{ color: "#2dd4a8" }}>Pro</span></div>
                         <div style={{ fontSize: '11px', color: '#4a6080', flex: 1, textAlign: 'center' }}>零售通路 B2B 銷售管理系統</div>
                         <div style={{ fontSize: 11, color: "#2dd4a8" }}>● AI 已連線</div>
                     </div>
-
-                    {/* Tabs */}
                     <div style={{ display: "flex", gap: 8, padding: "12px", background: "#0d1829", overflowX: "auto" }}>
                         {tabs.map(t => (
                             <button key={t.id} onClick={() => setTab(t.id)} className={`tab-btn ${tab === t.id ? 'active' : ''}`}>{t.label}</button>
                         ))}
                     </div>
-
-                    {/* Content */}
                     <div style={{ padding: 16, paddingBottom: 40 }}>
                         {tab === "dashboard" && <DashboardRetail />}
                         {tab === "ai"        && <AIChatRetail />}
                         {tab === "customers" && <div style={{textAlign:'center', marginTop:'40px', color:'#4a6080'}}>請在電腦版查看完整「通路管理」列表</div>}
                         {tab === "products"  && <div style={{textAlign:'center', marginTop:'40px', color:'#4a6080'}}>請在電腦版查看「產品目錄」</div>}
-                        {tab === "report"    && <div style={{textAlign:'center', marginTop:'40px', color:'#4a6080', padding: '20px', background: '#0d1829', borderRadius: '12px', border: '1px solid #1a3a7a'}}>📋 AI 銷售報告生成<br/><button style={{background:'#4f8ef7', border:'none', color:'white', padding:'8px 16px', borderRadius:'8px', marginTop:'15px'}}>🚀 生成報告</button></div>}
+                        {tab === "report"    && <div style={{textAlign:'center', marginTop:'40px', color:'#4a6080', padding: '20px', background: '#0d1829', borderRadius: '12px', border: '1px solid #1a3a7a'}}>📋 AI 銷售報告生成<br/><button style={{background:'#4f8ef7', border:'none', color:'white', padding:'8px 16px', borderRadius:'8px', marginTop:'15px', cursor:'pointer'}}>🚀 生成報告</button></div>}
                     </div>
                 </div>
             );
