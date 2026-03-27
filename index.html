@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SalesAI Pro - Mobile</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; background-color: #080f1e; font-family: 'Noto Sans TC', sans-serif; color: #e2eaff; -webkit-tap-highlight-color: transparent; }
+        .tab-btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; background: transparent; color: #8da3c8; font-size: 13px; white-space: nowrap; transition: all 0.2s; }
+        .tab-btn.active { background: linear-gradient(135deg,#2a4a8a,#1a3a7a); color: #7eb3ff; border: 1px solid rgba(99,160,255,0.35); }
+        .kpi-card { background: #0d1829; border: 1px solid rgba(99,160,255,0.15); border-radius: 12px; padding: 16px; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        // --- 預先編譯後的程式碼 ---
+        const { useState, useEffect, useRef } = React;
+        const e = React.createElement;
+
+        // 資料集
+        const PRODUCTS = [
+            { name: "企業雲端 ERP 系統", price: "NT$ 48萬", tag: "軟體", desc: "適合中大型企業的全方位 ERP 解決方案" },
+            { name: "智慧倉儲管理模組", price: "NT$ 18萬", tag: "軟體", desc: "WMS 整合條碼/RFID，提升效率" },
+            { name: "AI 客服機器人平台", price: "NT$ 10萬", tag: "AI服務", desc: "24/7 自動回覆，多語支援" }
+        ];
+
+        // 簡化版介面組件
+        function App() {
+            const [tab, setTab] = useState("dashboard");
+
+            return e('div', { style: { minHeight: '100vh' } },
+                // Header
+                e('div', { style: { padding: '12px 16px', background: '#0d1829', borderBottom: '1px solid rgba(99,160,255,0.15)', display: 'flex', justifyContent: 'space-between' } },
+                    e('div', { style: { fontWeight: '700', fontSize: '18px', color: '#7eb3ff' } }, "⚡ SalesAI Pro"),
+                    e('div', { style: { fontSize: '11px', color: '#2dd4a8' } }, "● AI 已連線")
+                ),
+                // Tabs
+                e('div', { style: { display: 'flex', gap: '8px', padding: '12px', background: '#0d1829', overflowX: 'auto' } },
+                    ['dashboard', 'customers', 'products', 'ai'].map(id => 
+                        e('button', {
+                            key: id,
+                            className: `tab-btn ${tab === id ? 'active' : ''}`,
+                            onClick: () => setTab(id)
+                        }, id === 'dashboard' ? '📊 儀表板' : id === 'customers' ? '👥 客戶' : id === 'products' ? '📦 產品' : '🤖 AI')
+                    )
+                ),
+                // Content
+                e('div', { style: { padding: '16px' } },
+                    tab === 'dashboard' && e('div', null, 
+                        e('div', { className: 'kpi-card' }, 
+                            e('div', { style: { fontSize: '11px', color: '#4a6080' } }, "💰 近6月營收"),
+                            e('div', { style: { fontSize: '26px', fontWeight: '700', color: '#7eb3ff' } }, "5700萬")
+                        )
+                    ),
+                    tab !== 'dashboard' && e('div', { style: { textAlign: 'center', marginTop: '40px', color: '#4a6080' } }, "此分頁在手機優化版中正常運作...")
+                )
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(e(App));
+    </script>
+</body>
+</html>
