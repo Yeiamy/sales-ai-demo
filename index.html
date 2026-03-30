@@ -289,7 +289,7 @@ function AIChat() {
     if (!text || loading) return;
     setInput("");
     const newMsgs = [...msgs, { role:"user", text }];
-    setMsgs([...newMsgs, { role:"assistant", text:"" }]);
+    setMsgs(newMsgs);
     setLoading(true);
     try {
       const sys = `你是 SalesAI Pro 的 AI 銷售助理，所有資料來自《實銷內部統計20260325.xlsx》實銷量總表。
@@ -322,38 +322,14 @@ function AIChat() {
         body: JSON.stringify({
           model:"claude-sonnet-4-20250514",
           max_tokens:1000,
-          stream: true,
           system: sys,
           messages: newMsgs.map(m => ({ role:m.role, content:m.text }))
         })
       });
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value, { stream: true }).split("\n");
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (!json || json === "[DONE]") continue;
-          try {
-            const evt = JSON.parse(json);
-            if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-              fullText += evt.delta.text;
-              setMsgs(p => {
-                const updated = [...p];
-                updated[updated.length - 1] = { role:"assistant", text: fullText };
-                return updated;
-              });
-            }
-          } catch {}
-        }
-      }
-      if (!fullText) setMsgs(p => { const u=[...p]; u[u.length-1]={role:"assistant",text:"（無回應）"}; return u; });
+      const data = await res.json();
+      setMsgs(p => [...p, { role:"assistant", text: data.content?.[0]?.text || "（無回應）" }]);
     } catch {
-      setMsgs(p => { const u=[...p]; u[u.length-1]={role:"assistant",text:"❌ 連線失敗，請稍後再試。"}; return u; });
+      setMsgs(p => [...p, { role:"assistant", text:"❌ 連線失敗，請稍後再試。" }]);
     } finally {
       setLoading(false);
     }
@@ -367,18 +343,15 @@ function AIChat() {
             <div className="chat-msg" style={{
               background: m.role==="user" ? "linear-gradient(135deg,#2a4a8a,#1a3a7a)" : "#111f35",
               color: m.role==="user" ? "white" : "#e2eaff",
-              whiteSpace:"pre-wrap", minHeight:20
-            }}>
-              {m.text || (loading && i === msgs.length - 1 && m.role === "assistant"
-                ? <span style={{ display:"inline-block", width:8, height:14, background:"#4f8ef7", borderRadius:2, animation:"pulse 0.8s infinite", verticalAlign:"middle" }} />
-                : ""
-              )}
-              {loading && i === msgs.length - 1 && m.role === "assistant" && m.text && (
-                <span style={{ display:"inline-block", width:8, height:14, background:"#4f8ef7", borderRadius:2, animation:"pulse 0.8s infinite", verticalAlign:"middle", marginLeft:2 }} />
-              )}
-            </div>
+              whiteSpace:"pre-wrap"
+            }}>{m.text}</div>
           </div>
         ))}
+        {loading && (
+          <div style={{ alignSelf:"flex-start" }}>
+            <div className="chat-msg" style={{ background:"#111f35", color:"#4a6080", animation:"pulse 1.2s infinite" }}>AI 思考中...</div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
       <div style={{ display:"flex", gap:8, marginTop:12, borderTop:"1px solid #1a3a7a", paddingTop:12 }}>
@@ -395,6 +368,253 @@ function AIChat() {
   );
 }
 
+// ── 獨立分析報告頁面 ──
+function SalesReport() {
+
+  // ── 真實數據（2025/1~2026/2，共14個月）──
+  const MONTHS14 = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月','*1月','*2月'];
+  const IS_2026 = [false,false,false,false,false,false,false,false,false,false,false,false,true,true];
+
+  const channels = [
+    { name:'家樂福',   vals:[66,18,8,10,11,8,17,14,20,15,12,6,18,42] },
+    { name:'全國電子', vals:[40,20,7,19,14,12,13,8,12,8,9,9,13,39] },
+    { name:'建達系列', vals:[12,9,5,4,8,8,12,11,5,0,7,10,12,11] },
+    { name:'車麗屋',   vals:[4,2,2,1,1,1,0,22,6,13,7,7,4,19] },
+    { name:'燦坤',     vals:[21,5,2,4,5,3,4,4,4,5,5,0,7,9] },
+    { name:'大潤發',   vals:[24,6,0,5,1,0,2,3,1,3,1,2,6,10] },
+    { name:'名展新竹', vals:[6,9,3,0,0,9,0,0,6,3,0,6,12,9] },
+    { name:'誠鴻音響', vals:[3,0,7,2,3,0,2,0,3,3,3,5,6,1] },
+    { name:'亞哥音響', vals:[5,0,0,0,0,2,0,2,2,1,2,0,0,5] },
+    { name:'馬艾網路', vals:[0,3,0,3,3,1,2,1,0,1,0,0,0,3] },
+    { name:'民視',     vals:[2,0,1,1,0,0,0,0,0,0,0,0,1,1] },
+    { name:'其他',     vals:[12,7,7,11,8,7,8,9,10,8,6,6,8,9] },
+  ];
+  const monthTotal = channels[0].vals.map((_,i) => channels.reduce((s,c)=>s+c.vals[i],0));
+  // 實際月合計（含三類產品）
+  const realMonthTotal = [195,79,42,61,54,51,64,74,69,59,51,54,96,526];
+
+  const karaoke = [194,79,42,60,54,51,61,51,60,43,44,41,77,506];
+  const carmic  = [0,0,0,0,0,0,0,21,8,15,7,11,18,20];
+  const conf    = [1,0,0,1,0,0,3,2,1,1,0,2,1,0];
+
+  const total14 = realMonthTotal.reduce((a,b)=>a+b,0);
+  const yr2025  = realMonthTotal.slice(0,12).reduce((a,b)=>a+b,0);
+  const yr2026  = realMonthTotal.slice(12).reduce((a,b)=>a+b,0);
+
+  const quarters = [
+    { q:'2025 Q1（1–3月）', total:316, avg:105, chg:'–',       chgUp:null,  note:'全期最高季，1月旺季衝高' },
+    { q:'2025 Q2（4–6月）', total:166, avg:55,  chg:'▼ -47%',  chgUp:false, note:'淡季回落，需加強促銷' },
+    { q:'2025 Q3（7–9月）', total:207, avg:69,  chg:'▲ +25%',  chgUp:true,  note:'車麗屋8月爆量，回升明顯' },
+    { q:'2025 Q4（10–12月）',total:164,avg:55,  chg:'▼ -21%',  chgUp:false, note:'年末偏弱，補庫存備戰' },
+    { q:'2026 Q1（1–2月，未完）',total:622,avg:311,chg:'▲ +279%',chgUp:true,note:'2/2月526台，強勁反彈' },
+  ];
+
+  const ranks = [
+    { r:1,  name:'家樂福',   tot:265, y25:207, y26:60,  note:'最穩通路，全期第一' },
+    { r:2,  name:'全國電子', tot:223, y25:171, y26:52,  note:'2026/2大幅拉升39台' },
+    { r:3,  name:'建達系列', tot:114, y25:96,  y26:18,  note:'音響通路穩定出貨' },
+    { r:4,  name:'車麗屋',   tot:89,  y25:71,  y26:18,  note:'家用+車用雙線' },
+    { r:5,  name:'燦坤',     tot:78,  y25:66,  y26:23,  note:'12月清零需關注' },
+    { r:6,  name:'大潤發',   tot:64,  y25:50,  y26:16,  note:'穩定小量通路' },
+    { r:7,  name:'名展新竹', tot:63,  y25:48,  y26:21,  note:'音響通路可提升' },
+    { r:8,  name:'誠鴻音響', tot:38,  y25:34,  y26:7,   note:'音響通路穩健' },
+    { r:9,  name:'亞哥音響', tot:19,  y25:14,  y26:5,   note:'小型通路勿忽視' },
+    { r:10, name:'馬艾網路', tot:17,  y25:14,  y26:3,   note:'網路通路小量' },
+  ];
+
+  const insights = [
+    { title:'家樂福為長期主力通路', color:'#2dd4a8',
+      text:'累計 265 台（佔18.2%），全期表現最穩定。建議持續深耕並爭取更多陳列位置，加強新品 K1 豪華版鋪貨。' },
+    { title:'全國電子 2026 年強勁反彈', color:'#7eb3ff',
+      text:'2026/2 達 39 台，近 14 個月新高。顯示可能有促銷活動或庫存補充，需追蹤原因並複製成功模式。' },
+    { title:'2025 Q1 旺季，Q2 為低谷', color:'#f5c842',
+      text:'1月196台最高，3月跌至42台（-79%）。建議Q1前提前備貨，Q2加強促銷力度，避免大幅回落。' },
+    { title:'車麗屋8月車用爆量需追蹤', color:'#f5a623',
+      text:'8月TBM-110 共21台爆量（平均月銷僅6台），需確認原因（促銷/特殊訂單），評估是否可複製至其他通路。' },
+    { title:'2026年開局強勁', color:'#2dd4a8',
+      text:'1-2月合計622台，月均311台，較2025年月均71台大幅成長 +338%。2/2月526台創新高，建議確認供貨穩定性。' },
+    { title:'小型音響通路貢獻不可忽視', color:'#a78bfa',
+      text:'建達東隆、誠鴻音響、亞哥音響、映象音響等合計占相當比重，建議整合管理並增加服務頻率。' },
+    { title:'車用麥克風通路擴展空間大', color:'#4ff7c8',
+      text:'TBM-110目前僅車麗屋為主要通路，名展新竹有小量。建議主動開發汽車百貨、音響專門店擴大通路數。' },
+  ];
+
+  // ── 樣式 ──
+  const s = {
+    wrap: { background:'#080f1e', minHeight:'100vh', fontFamily:'Noto Sans TC, sans-serif' },
+    card: { background:'#0d1829', border:'1px solid rgba(99,160,255,0.15)', borderRadius:12, padding:16, marginBottom:16 },
+    secTitle: { fontSize:13, fontWeight:700, color:'#7eb3ff', marginBottom:12, display:'flex', alignItems:'center', gap:6,
+      borderBottom:'1px solid rgba(99,160,255,0.1)', paddingBottom:8 },
+    th: { background:'#1a3a7a', color:'white', fontWeight:600, fontSize:11, padding:'7px 6px', textAlign:'center', border:'1px solid rgba(99,160,255,0.15)', whiteSpace:'nowrap' },
+    td: { padding:'6px 6px', fontSize:11, textAlign:'center', border:'1px solid rgba(99,160,255,0.08)', color:'#c8d8f0' },
+    tdL: { padding:'6px 8px', fontSize:11, textAlign:'left', border:'1px solid rgba(99,160,255,0.08)', color:'#e2eaff', fontWeight:500, whiteSpace:'nowrap' },
+  };
+
+  function numStyle(v, is2026) {
+    if (v === 0) return { ...s.td, color:'#2a3a5a' };
+    if (v >= 100) return { ...s.td, background:'rgba(245,200,66,0.2)', color:'#f5c842', fontWeight:700 };
+    if (v >= 60)  return { ...s.td, background: is2026 ? 'rgba(79,142,247,0.25)':'rgba(79,142,247,0.15)', color:'#7eb3ff', fontWeight:600 };
+    if (v >= 20)  return { ...s.td, color:'#a0c4f8' };
+    return s.td;
+  }
+
+  return (
+    <div style={{ animation:'fadeIn 0.4s ease' }}>
+
+      {/* 標題 */}
+      <div style={{ textAlign:'center', marginBottom:20 }}>
+        <div style={{ fontSize:18, fontWeight:700, color:'#7eb3ff', letterSpacing:1 }}>實銷統計分析報告</div>
+        <div style={{ fontSize:12, color:'#4f8ef7', marginTop:4 }}>2025年1月 — 2026年2月</div>
+        <div style={{ fontSize:11, color:'#4a6080', marginTop:2 }}>報告日期：2026年3月27日</div>
+      </div>
+
+      {/* 一、業績摘要 */}
+      <div style={s.card}>
+        <div style={s.secTitle}>一、業績摘要</div>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr>
+              {['指標','2025全年','2026至今（1-2月）','累計統計（14個月）','備註'].map(h=>(
+                <th key={h} style={s.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['總銷售台數', `${yr2025}台`, `${yr2026}台`, <strong style={{color:'#7eb3ff'}}>{total14}台</strong>, ''],
+              ['月均銷售數', '71台/月', '311台/月', '105台/月', '2026年月均大幅成長'],
+              ['最高月銷', '196台（1月）', '526台（2月）', '526台', '2025年1月副最高'],
+              ['最低月銷', '42台（3月）', '96台（1月）', '42台', '2025年3月最低谷'],
+              ['主力通路', '家樂福（207台）', '家樂福（60台）', <strong style={{color:'#2dd4a8'}}>家樂福（265台）</strong>, '全期第一通路'],
+            ].map((row, ri) => (
+              <tr key={ri} style={{ background: ri%2===0 ? 'rgba(99,160,255,0.03)':'transparent' }}>
+                {row.map((cell, ci) => (
+                  <td key={ci} style={ ci===3 ? {...s.td, background:'rgba(79,142,247,0.08)', fontWeight:600} : ci===0 ? s.tdL : s.td }>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 二、各通路月度銷售明細 */}
+      <div style={s.card}>
+        <div style={s.secTitle}>二、各通路月度銷售明細</div>
+        <div style={{ fontSize:10, color:'#4a6080', marginBottom:8 }}>★ 標示為2026年月份；數字醒目標示≥20台；合計≥60台通路以藍底標示</div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ borderCollapse:'collapse', minWidth:900 }}>
+            <thead>
+              <tr>
+                <th style={{...s.th, textAlign:'left', minWidth:70}}>通路</th>
+                {MONTHS14.map((m, i) => (
+                  <th key={m} style={{...s.th, background: i>=12 ? '#1a5276':'#1a3a7a', minWidth:32}}>{m}</th>
+                ))}
+                <th style={{...s.th, background:'#145a32', minWidth:44}}>合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {channels.map((ch, ri) => {
+                const tot = ch.vals.reduce((a,b)=>a+b,0);
+                return (
+                  <tr key={ch.name} style={{ background: ri%2===0 ? 'rgba(99,160,255,0.02)':'transparent' }}>
+                    <td style={{...s.tdL, background: tot>=200 ? 'rgba(45,212,168,0.08)':'transparent', color: tot>=200?'#2dd4a8':'#e2eaff'}}>{ch.name}</td>
+                    {ch.vals.map((v, mi) => (
+                      <td key={mi} style={numStyle(v, IS_2026[mi])}>{v===0?'–':v}</td>
+                    ))}
+                    <td style={{ ...s.td, background: tot>=200?'rgba(45,212,168,0.15)':tot>=100?'rgba(79,142,247,0.1)':'rgba(99,160,255,0.05)',
+                      color: tot>=200?'#2dd4a8':tot>=100?'#7eb3ff':'#c8d8f0', fontWeight:700 }}>{tot}</td>
+                  </tr>
+                );
+              })}
+              {/* 月合計列 */}
+              <tr style={{ borderTop:'2px solid rgba(99,160,255,0.3)' }}>
+                <td style={{...s.tdL, background:'#1a3a7a', color:'white', fontWeight:700}}>月合計</td>
+                {realMonthTotal.map((v, mi) => (
+                  <td key={mi} style={{ ...s.td, background: IS_2026[mi]?'rgba(26,82,118,0.6)':'rgba(42,74,138,0.6)',
+                    color:'white', fontWeight:700 }}>{v}</td>
+                ))}
+                <td style={{ ...s.td, background:'rgba(20,90,50,0.6)', color:'#2dd4a8', fontWeight:700 }}>{total14}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 三、季度銷售趨勢分析 */}
+      <div style={s.card}>
+        <div style={s.secTitle}>三、季度銷售趨勢分析</div>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr>
+              {['季度','銷售台數','平均月銷','環比變化','說明'].map(h=>(
+                <th key={h} style={s.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {quarters.map((q, ri) => (
+              <tr key={ri} style={{ background: ri===4?'rgba(245,200,66,0.06)': ri%2===0?'rgba(99,160,255,0.02)':'transparent' }}>
+                <td style={{...s.tdL, color: ri===4?'#f5c842':'#e2eaff', fontWeight: ri===4?700:500}}>{q.q}</td>
+                <td style={{...s.td, fontWeight:700, color: ri===4?'#f5c842':'#7eb3ff'}}>{q.total}台</td>
+                <td style={s.td}>{q.avg}台/月</td>
+                <td style={{...s.td, color: q.chgUp===true?'#2dd4a8':q.chgUp===false?'#f87171':'#4a6080', fontWeight: q.chgUp!==null?600:400}}>{q.chg}</td>
+                <td style={{...s.td, textAlign:'left', color:'#8da3c8'}}>{q.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 四、通路排名與分析 */}
+      <div style={s.card}>
+        <div style={s.secTitle}>四、通路排名與分析</div>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr>
+              {['排','通路','14月合計','2025','2026(1-2月)','趨勢觀察'].map(h=>(
+                <th key={h} style={s.th}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ranks.map((r, ri) => (
+              <tr key={ri} style={{ background: r.r<=3?'rgba(245,200,66,0.04)':'rgba(99,160,255,0.02)' }}>
+                <td style={{...s.td, fontWeight:700, color: r.r===1?'#f5c842':r.r===2?'#c8d8f0':r.r===3?'#f5a623':'#4a6080'}}>{r.r}</td>
+                <td style={{...s.tdL, color: r.r<=3?'#e2eaff':'#c8d8f0', fontWeight: r.r<=3?700:400}}>{r.name}</td>
+                <td style={{...s.td, color: r.r<=3?'#2dd4a8':'#7eb3ff', fontWeight: r.r<=3?700:500, background: r.r<=3?'rgba(45,212,168,0.08)':'transparent'}}>{r.tot}台</td>
+                <td style={s.td}>{r.y25}台</td>
+                <td style={{...s.td, color: r.y26>=30?'#7eb3ff':'#8da3c8'}}>{r.y26}台</td>
+                <td style={{...s.td, textAlign:'left', color:'#8da3c8', fontSize:10}}>{r.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 五、重點洞察與行動建議 */}
+      <div style={s.card}>
+        <div style={s.secTitle}>五、重點洞察與行動建議</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {insights.map((ins, i) => (
+            <div key={i} style={{ display:'flex', gap:12, padding:'10px 12px', background:'rgba(99,160,255,0.04)', borderRadius:8, border:`1px solid ${ins.color}22`, borderLeft:`3px solid ${ins.color}` }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#4a6080', minWidth:18 }}>{i+1}.</div>
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, color:ins.color, marginBottom:4 }}>{ins.title}</div>
+                <div style={{ fontSize:11, color:'#8da3c8', lineHeight:1.6 }}>{ins.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 頁尾 */}
+      <div style={{ fontSize:10, color:'#2a3a5a', textAlign:'center', padding:'12px 0', borderTop:'1px solid rgba(99,160,255,0.08)' }}>
+        資料來源：實銷內部統計20260325.xlsx ｜ 2026/03 截至統計日尚無出貨紀錄 ｜ 建達系列含東隆/三井/士展/希金
+      </div>
+    </div>
+  );
+}
+
 // ── App ──
 function App() {
   const [tab, setTab] = useState("dashboard");
@@ -404,6 +624,7 @@ function App() {
     {id:"products", label:"📦 產品目錄"},
     {id:"ai",       label:"🤖 AI 助理"},
     {id:"report",   label:"📋 銷售報告"},
+    {id:"analysis", label:"📄 分析報告"},
   ];
   return (
     <div style={{ minHeight:"100vh" }}>
@@ -429,6 +650,7 @@ function App() {
             <button style={{background:"#4f8ef7",border:"none",color:"white",padding:"8px 16px",borderRadius:8,marginTop:15,cursor:"pointer"}}>🚀 生成報告</button>
           </div>
         )}
+        {tab==="analysis"  && <SalesReport />}
       </div>
     </div>
   );
