@@ -1,413 +1,414 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SalesAI Pro - 零售通路 B2B 銷售系統</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body { margin: 0; padding: 0; background-color: #080f1e; font-family: 'Noto Sans TC', sans-serif; color: #e2eaff; }
-        ::-webkit-scrollbar { width: 0; height: 0; }
-        .tab-btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; background: transparent; color: #8da3c8; font-size: 13px; white-space: nowrap; }
-        .tab-btn.active { background: linear-gradient(135deg,#2a4a8a,#1a3a7a); color: white; border: 1px solid rgba(99,160,255,0.35); }
-        .kpi-card { background: #0d1829; border: 1px solid rgba(99,160,255,0.15); border-radius: 12px; padding: 16px; }
-        .chat-msg { padding: 10px 14px; border-radius: 12px; max-width: 85%; font-size: 13px; line-height: 1.5; border: 1px solid rgba(99,160,255,0.15); }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        .chart-col:hover .bar-inner { filter: brightness(1.3); }
-        .tooltip-box { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1a2f50; border: 1px solid rgba(99,160,255,0.35); border-radius: 10px; padding: 8px 16px; font-size: 12px; color: #e2eaff; z-index: 999; pointer-events: none; white-space: nowrap; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SalesAI Pro — B2B 智慧銷售系統</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #080f1e; font-family: 'Noto Sans TC', sans-serif; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(99,160,255,0.2); border-radius: 4px; }
+  </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useRef, useEffect } = React;
+  <div id="root"></div>
 
-// ── 從 Excel 實銷內部統計20260325.xlsx 直接讀取的真實數據 ──
-// 來源：實銷量總表，欄53(2025/1)~欄67(2026/3)
-// 擷取時間：2026-03-25，2026/03 尚無出貨紀錄
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
 
-const MONTHS_LABEL = [
-  "25/1","25/2","25/3","25/4","25/5","25/6",
-  "25/7","25/8","25/9","25/10","25/11","25/12",
-  "26/1","26/2","26/3"
-];
-const MONTHS_FULL = [
-  "2025/01","2025/02","2025/03","2025/04","2025/05","2025/06",
-  "2025/07","2025/08","2025/09","2025/10","2025/11","2025/12",
-  "2026/01","2026/02","2026/03"
-];
+    const PRODUCTS = [
+      { name: "企業雲端 ERP 系統",  price: "NT$ 48萬", tag: "軟體",   desc: "適合中大型企業的全方位 ERP 解決方案，模組化設計" },
+      { name: "智慧倉儲管理模組",    price: "NT$ 18萬", tag: "軟體",   desc: "WMS 整合條碼/RFID，提升倉儲效率達 40%" },
+      { name: "AI 客服機器人平台",   price: "NT$ 10萬", tag: "AI服務", desc: "24/7 自動回覆，支援多語言與多渠道整合" },
+      { name: "數據分析儀表板",      price: "NT$ 6萬",  tag: "BI工具", desc: "即時商業智慧，支援自定義報表與預警通知" },
+      { name: "供應鏈可視化平台",    price: "NT$ 32萬", tag: "整合服務", desc: "全鏈路追蹤，整合上下游夥伴數據即時共享" },
+      { name: "智慧銷售預測模組",    price: "NT$ 15萬", tag: "AI服務", desc: "AI 驅動需求預測，準確率 >85%，降低庫存成本" },
+    ];
 
-const PRODUCT_DATA = [
-  {
-    key: "karaoke",
-    label: "🎤 家用K歌",
-    color: "#f5c842",
-    glow: "rgba(245,200,66,0.5)",
-    dim: "rgba(245,200,66,0.12)",
-    border: "rgba(245,200,66,0.4)",
-    // 實銷量總表 第83列 家用K歌總計
-    values: [194, 79, 42, 60, 54, 51, 61, 51, 60, 43, 44, 41, 77, 506, 0],
-  },
-  {
-    key: "carmic",
-    label: "🎙 車用麥克風",
-    color: "#4ff7c8",
-    glow: "rgba(79,247,200,0.5)",
-    dim: "rgba(79,247,200,0.12)",
-    border: "rgba(79,247,200,0.4)",
-    // 實銷量總表 第99列 車用麥克風總計
-    values: [0, 0, 0, 0, 0, 0, 0, 21, 8, 15, 7, 11, 18, 20, 0],
-  },
-  {
-    key: "conference",
-    label: "📡 會議機",
-    color: "#7eb3ff",
-    glow: "rgba(126,179,255,0.5)",
-    dim: "rgba(126,179,255,0.12)",
-    border: "rgba(126,179,255,0.4)",
-    // 實銷量總表 第107列 會議機總計
-    values: [1, 0, 0, 1, 0, 0, 3, 2, 1, 1, 0, 2, 1, 0, 0],
-  },
-];
+    const CUSTOMERS = [
+      { id: "C001", name: "台積電供應鏈部", industry: "半導體", contact: "陳經理", amount: "120萬", stage: "成交" },
+      { id: "C002", name: "統一超商數位部", industry: "零售",   contact: "林副理", amount: "48萬",  stage: "提案中" },
+      { id: "C003", name: "長榮海運IT部",   industry: "物流",   contact: "王主任", amount: "72萬",  stage: "評估中" },
+      { id: "C004", name: "富邦金控科技部", industry: "金融",   contact: "張協理", amount: "95萬",  stage: "初接觸" },
+      { id: "C005", name: "鴻海精密工業",   industry: "製造業", contact: "李處長", amount: "200萬", stage: "提案中" },
+    ];
 
-const RETAIL_CHANNELS = [
-  { id:"R001", name:"家樂福",        type:"量販零售",     stage:"成交",  note:"CSM-202TA K1，2026/2: 42台" },
-  { id:"R002", name:"Costco 好市多", type:"倉儲量販",     stage:"成交",  note:"主力通路，2026/2 貢獻 366 台" },
-  { id:"R003", name:"全國電子",      type:"消費電子零售", stage:"洽談中", note:"CSM-202TA K1，2026/2: 39台" },
-  { id:"R004", name:"燦坤",          type:"消費電子零售", stage:"提案中", note:"2026/2: 9台" },
-  { id:"R005", name:"順發",          type:"消費電子零售", stage:"評估中", note:"量少，維持中" },
-  { id:"R006", name:"車麗屋",        type:"汽車百貨零售", stage:"初接觸", note:"車用+家用K歌" },
-  { id:"R007", name:"民視電視購物",  type:"電視購物",     stage:"洽談中", note:"特定時段促銷" },
-  { id:"R008", name:"名展新竹",      type:"影音零售",     stage:"提案中", note:"2026/2: 7台" },
-];
+    const CHART_DATA = [
+      { month: "10月", val: 820,  h: 66 },
+      { month: "11月", val: 940,  h: 76 },
+      { month: "12月", val: 760,  h: 61 },
+      { month: "1月",  val: 1050, h: 85 },
+      { month: "2月",  val: 890,  h: 72 },
+      { month: "3月",  val: 1240, h: 100 },
+    ];
 
-const stageColor = (s) => ({
-  "成交":  { bg:"rgba(45,212,168,0.15)", color:"#2dd4a8", border:"rgba(45,212,168,0.3)" },
-  "提案中":{ bg:"rgba(79,142,247,0.15)", color:"#7eb3ff", border:"rgba(79,142,247,0.3)" },
-  "洽談中":{ bg:"rgba(167,139,250,0.15)",color:"#a78bfa", border:"rgba(167,139,250,0.3)" },
-  "評估中":{ bg:"rgba(245,166,35,0.15)", color:"#f5a623", border:"rgba(245,166,35,0.3)" },
-  "初接觸":{ bg:"rgba(120,120,120,0.15)",color:"#aaaaaa", border:"rgba(120,120,120,0.3)" },
-}[s] || { bg:"#222", color:"#aaa", border:"#444" });
+    const SYSTEM_PROMPT = `你是一個B2B銷售系統的AI助理，協助業務人員分析客戶、推薦產品、回答銷售問題。
+現有客戶：台積電(半導體,成交120萬)、統一超商(零售,提案中48萬)、長榮海運(物流,評估中72萬)、富邦金控(金融,初接觸95萬)、鴻海精密(製造業,提案中200萬)。
+產品：ERP系統(48萬)、智慧倉儲(18萬)、AI客服(10萬)、BI儀表板(6萬)、供應鏈平台(32萬)、銷售預測(15萬)。
+近6月營收5700萬，成交率27%，成交67件。請用繁體中文、簡潔專業的方式回覆。`;
 
-function Badge({ label }) {
-  const s = stageColor(label);
-  return <span style={{ padding:"3px 9px", borderRadius:6, fontSize:11, fontWeight:500,
-    background:s.bg, color:s.color, border:`1px solid ${s.border}`, whiteSpace:"nowrap" }}>{label}</span>;
-}
+    const stageColor = (s) => ({
+      "成交":  { bg: "rgba(45,212,168,0.15)", color: "#2dd4a8", border: "rgba(45,212,168,0.3)" },
+      "提案中": { bg: "rgba(79,142,247,0.15)", color: "#7eb3ff", border: "rgba(79,142,247,0.3)" },
+      "評估中": { bg: "rgba(245,166,35,0.15)", color: "#f5a623", border: "rgba(245,166,35,0.3)" },
+      "初接觸": { bg: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "rgba(167,139,250,0.3)" },
+    }[s] || { bg: "#222", color: "#aaa", border: "#444" });
 
-// ── 產品銷售圖表 ──
-function ProductSalesChart() {
-  const [tooltip, setTooltip] = useState(null);
-  const [activeKey, setActiveKey] = useState(null);
-  const BAR_H = 90;
+    const tagColor = (t) => ({
+      "軟體":   { bg: "rgba(79,142,247,0.15)", color: "#7eb3ff", border: "rgba(79,142,247,0.3)" },
+      "AI服務": { bg: "rgba(45,212,168,0.15)", color: "#2dd4a8", border: "rgba(45,212,168,0.3)" },
+      "BI工具": { bg: "rgba(245,166,35,0.15)", color: "#f5a623", border: "rgba(245,166,35,0.3)" },
+      "整合服務": { bg: "rgba(167,139,250,0.15)", color: "#a78bfa", border: "rgba(167,139,250,0.3)" },
+    }[t] || { bg: "#222", color: "#aaa", border: "#444" });
 
-  const visMax = { karaoke: 530, carmic: 25, conference: 4 };
+    // 非串流版（給客戶推薦用，需要完整 JSON）
+    async function callClaude(messages, system) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system, messages }),
+      });
+      const data = await res.json();
+      return data.content[0].text;
+    }
 
-  function barH(val, key) {
-    if (!val || val <= 0) return 2;
-    return Math.max(4, Math.round((val / visMax[key]) * BAR_H));
-  }
+    // 串流版（給 AI 助理聊天用）
+    async function callClaudeStream(messages, system, onChunk) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, stream: true, system, messages }),
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const lines = decoder.decode(value, { stream: true }).split("\n");
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const json = line.slice(6).trim();
+          if (!json || json === "[DONE]") continue;
+          try {
+            const evt = JSON.parse(json);
+            if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+              fullText += evt.delta.text;
+              onChunk(fullText);
+            }
+          } catch {}
+        }
+      }
+      return fullText;
+    }
 
-  return (
-    <div className="kpi-card" style={{ marginBottom: 16 }}>
-      {/* 標題列 */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:6 }}>
-        <div style={{ fontSize:13, fontWeight:600 }}>📊 產品銷售趨勢（2025/01 – 2026/03）</div>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {PRODUCT_DATA.map(p => (
-            <button key={p.key} onClick={() => setActiveKey(activeKey === p.key ? null : p.key)}
-              style={{ fontSize:10, padding:"3px 8px", borderRadius:6, cursor:"pointer",
-                border:`1px solid ${p.border}`,
-                background: activeKey === p.key ? p.dim : "transparent",
-                color: p.color }}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    function Badge({ label }) {
+      const s = stageColor(label);
+      return (
+        <span style={{ padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 500,
+          background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap" }}>
+          {label}
+        </span>
+      );
+    }
 
-      {PRODUCT_DATA.map((prod) => {
-        if (activeKey && activeKey !== prod.key) return null;
-        const peak = Math.max(...prod.values);
-        const total = prod.values.reduce((a,b)=>a+b,0);
-        return (
-          <div key={prod.key} style={{ marginBottom:22, animation:"fadeIn 0.35s ease" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-              <div style={{ fontSize:11, color:prod.color, fontWeight:600 }}>{prod.label}</div>
-              <div style={{ fontSize:10, color:"#4a6080" }}>
-                累計 <span style={{color:prod.color}}>{total}</span> 台 ｜ 峰值 <span style={{color:prod.color}}>{peak}</span> 台
+    function Dashboard() {
+      const kpis = [
+        { label: "💰 近6月營收", val: "5700萬", color: "#7eb3ff" },
+        { label: "🎯 潛在客戶數", val: "244",    color: "#a78bfa" },
+        { label: "✅ 成交案件",   val: "67",     color: "#2dd4a8" },
+        { label: "📈 成交率",     val: "27%",    color: "#f5a623" },
+      ];
+      return (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            {kpis.map(k => (
+              <div key={k.label} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16 }}>
+                <div style={{ fontSize: 11, color: "#4a6080", marginBottom: 6 }}>{k.label}</div>
+                <div style={{ fontFamily: "monospace", fontSize: 26, fontWeight: 700, color: k.color }}>{k.val}</div>
               </div>
-            </div>
+            ))}
+          </div>
 
-            {/* 長條圖 */}
-            <div style={{ display:"flex", alignItems:"flex-end", gap:3, height: BAR_H + 32 }}>
-              {prod.values.map((val, mi) => {
-                const h = barH(val, prod.key);
-                const isPeak = val === peak && val > 0;
-                const is2026 = mi >= 12;
-                const isLatest = mi === 14; // 2026/03 尚無資料
+          <div style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 14 }}>📊 月度營收趨勢</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 110 }}>
+              {CHART_DATA.map((d, i) => {
+                const isLast = i === CHART_DATA.length - 1;
                 return (
-                  <div key={mi} className="chart-col" style={{ display:"flex", flexDirection:"column", alignItems:"center", flex:1, gap:2, cursor:"pointer" }}
-                    onMouseEnter={() => setTooltip({ label: prod.label, month: MONTHS_FULL[mi], val, isPeak })}
-                    onMouseLeave={() => setTooltip(null)}>
-                    {/* 數值標籤 */}
-                    <div style={{ fontSize:8, height:14, display:"flex", alignItems:"center",
-                      color: isPeak ? prod.color : val > 0 ? "rgba(200,220,255,0.5)" : "transparent",
-                      fontWeight: isPeak ? 700 : 400 }}>
-                      {val > 0 ? val : ""}
-                    </div>
-                    {/* 柱體 */}
-                    <div className="bar-inner" style={{
-                      width:"100%", height: h,
-                      background: isLatest
-                        ? "rgba(255,255,255,0.04)"
-                        : isPeak
-                          ? `linear-gradient(180deg, ${prod.color}, ${prod.color}88)`
-                          : val > 0
-                            ? `linear-gradient(180deg, ${prod.color}99, ${prod.color}33)`
-                            : "rgba(255,255,255,0.04)",
-                      borderRadius:"3px 3px 0 0",
-                      border: isPeak ? `1px solid ${prod.color}` : "none",
-                      boxShadow: isPeak ? `0 0 10px ${prod.glow}` : "none",
-                      transition:"filter 0.15s",
-                    }} />
-                    {/* 年份分隔線 */}
-                    {mi === 11 && (
-                      <div style={{ position:"relative", width:"100%" }}>
-                        <div style={{ position:"absolute", right:-2, bottom:0,
-                          height: BAR_H + 40, width:1, background:"rgba(99,160,255,0.25)" }} />
-                      </div>
-                    )}
-                    {/* 月份標籤 */}
-                    <div style={{ fontSize:8, color: is2026 ? "#4f8ef7" : "#3a5070",
-                      whiteSpace:"nowrap", marginTop:1 }}>{MONTHS_LABEL[mi]}</div>
+                  <div key={d.month} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, gap: 4 }}>
+                    <div style={{ fontSize: 9, color: isLast ? "#2dd4a8" : "#4a6080", textAlign: "center" }}>{d.val}萬</div>
+                    <div style={{ width: "100%", height: `${d.h}%`,
+                      background: isLast ? "linear-gradient(180deg,#2dd4a8,#1a7a5a)" : "linear-gradient(180deg,#4f8ef7,#2a4a9a)",
+                      borderRadius: "3px 3px 0 0" }} />
+                    <div style={{ fontSize: 10, color: "#4a6080" }}>{d.month}</div>
                   </div>
                 );
               })}
             </div>
-
-            {/* 年份帶 */}
-            <div style={{ display:"flex", fontSize:9, marginTop:1 }}>
-              <div style={{ flex:12, color:"#3a5070", borderTop:"1px solid rgba(99,160,255,0.08)", paddingTop:3, textAlign:"center" }}>── 2025 ──</div>
-              <div style={{ flex:3, color:"#4f8ef7", borderTop:"1px solid rgba(79,142,247,0.25)", paddingTop:3, textAlign:"center" }}>─ 2026 ─</div>
-            </div>
           </div>
-        );
-      })}
 
-      {tooltip && (
-        <div className="tooltip-box">
-          <strong>{tooltip.label}</strong>　{tooltip.month}　
-          <span style={{ color: "#f5c842" }}>{tooltip.val} 台</span>
-          {tooltip.isPeak && <span style={{ color:"#2dd4a8", marginLeft:6 }}>🏆 峰值</span>}
-          {tooltip.val === 0 && <span style={{ color:"#4a6080", marginLeft:6 }}>（尚無資料）</span>}
-        </div>
-      )}
-
-      <div style={{ fontSize:10, color:"#3a5070", paddingTop:8, borderTop:"1px solid rgba(99,160,255,0.06)", marginTop:4 }}>
-        💾 資料來源：實銷內部統計20260325.xlsx ｜ 2026/03 截至統計日尚無出貨紀錄
-      </div>
-    </div>
-  );
-}
-
-// ── 儀表板 ──
-function Dashboard() {
-  const kpis = [
-    { label:"🎤 家用K歌累計", val:"1,357台", color:"#f5c842" },
-    { label:"🎙 車用麥克風累計", val:"100台",  color:"#4ff7c8" },
-    { label:"📡 會議機累計",    val:"12台",    color:"#7eb3ff" },
-    { label:"📈 Costco占比",    val:"72.9%",   color:"#f5a623" },
-  ];
-  return (
-    <div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
-        {kpis.map(k => (
-          <div key={k.label} className="kpi-card">
-            <div style={{ fontSize:11, color:"#4a6080", marginBottom:6 }}>{k.label}</div>
-            <div style={{ fontSize:26, fontWeight:700, color:k.color }}>{k.val}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* 明星通路 */}
-      <div style={{ background:"linear-gradient(135deg,#0d1829,#1a7a5a)", border:"1px solid rgba(45,212,168,0.3)",
-        borderRadius:12, padding:16, marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-        <div>
-          <div style={{ fontSize:12, color:"#2dd4a8" }}>🏆 本月明星通路</div>
-          <div style={{ fontSize:18, fontWeight:700, marginTop:6 }}>Costco 好市多</div>
-          <div style={{ fontSize:12, color:"#8da3c8", marginTop:6, lineHeight:1.6 }}>
-            2026/2 貢獻 <strong style={{color:"#2dd4a8"}}>366 台</strong>，<br/>
-            佔當月總出貨 506 台的 <strong style={{color:"#2dd4a8"}}>72.4%</strong>
+          <div style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 12 }}>🔥 本月重點客戶</div>
+            {CUSTOMERS.slice(0, 3).map((c, i) => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
+                borderBottom: i < 2 ? "1px solid rgba(99,160,255,0.1)" : "none" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13 }}>{c.name}</div>
+                  <div style={{ fontSize: 11, color: "#4a6080", marginTop: 2 }}>{c.industry} · {c.contact}</div>
+                </div>
+                <Badge label={c.stage} />
+              </div>
+            ))}
           </div>
         </div>
-        <div style={{ textAlign:"right" }}>
-          <div style={{ fontSize:32, fontWeight:700, color:"#2dd4a8" }}>506</div>
-          <div style={{ fontSize:12, color:"#8da3c8" }}>台 / 2026年2月</div>
-        </div>
-      </div>
-
-      {/* 產品銷售圖表 */}
-      <ProductSalesChart />
-
-      {/* 通路列表 */}
-      <div className="kpi-card">
-        <div style={{ fontSize:13, fontWeight:500, marginBottom:12 }}>🏪 通路銷售狀態</div>
-        {RETAIL_CHANNELS.map(c => (
-          <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
-            padding:"8px 0", borderBottom:"1px solid rgba(99,160,255,0.05)" }}>
-            <div>
-              <div style={{ fontSize:12, fontWeight:500 }}>{c.name}</div>
-              <div style={{ fontSize:10, color:"#4a6080" }}>{c.note}</div>
-            </div>
-            <Badge label={c.stage} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── AI 助理 ──
-function AIChat() {
-  const [msgs, setMsgs] = useState([{
-    role:"assistant",
-    text:"您好！我是 SalesAI Pro 🤖\n\n📊 已載入《實銷內部統計20260325》真實數據：\n\n🎤 家用K歌：累計 1,357 台\n   2026/2 峰值 506 台（Costco 366台，72.4%）\n\n🎙 車用麥克風：累計 100 台\n   2025/8 開始出貨，趨勢穩健\n\n📡 會議機：累計 12 台\n   小量穩定\n\n請問有什麼我可以幫您分析？"
-  }]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef(null);
-
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
-
-  async function send() {
-    const text = input.trim();
-    if (!text || loading) return;
-    setInput("");
-    const newMsgs = [...msgs, { role:"user", text }];
-    setMsgs(newMsgs);
-    setLoading(true);
-    try {
-      const sys = `你是 SalesAI Pro 的 AI 銷售助理，所有資料來自《實銷內部統計20260325.xlsx》實銷量總表。
-
-【真實銷售數據 2025/01~2026/03】
-家用K歌總計（CSM-202TA K1系列）：
-  194,79,42,60,54,51,61,51,60,43,44,41,77,506,0 台
-  （2026/03 截至統計日尚無出貨）
-
-車用麥克風總計（TBM-110A/B）：
-  0,0,0,0,0,0,0,21,8,15,7,11,18,20,0 台
-  （2025/8開始出貨）
-
-會議機總計：
-  1,0,0,1,0,0,3,2,1,1,0,2,1,0,0 台
-
-主要通路本期資料：
-- 家樂福 CSM-202TA K1：2026/2 = 42台（成交）
-- 全國電子 CSM-202TA K1：2026/2 = 39台（洽談中）
-- 燦坤 CSM-202TA K1：2026/2 = 9台（提案中）
-- 大潤發：2026/2 = 10台（成交）
-- 建達東隆：2026/2 = 6台
-- 名展新竹：2026/2 = 7台（提案中）
-- Costco 2026/2 貢獻約366台（佔506台的72.4%）
-
-請用繁體中文，簡潔且有業務見解地回答，給出具體可行的策略建議。`;
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
-          system: sys,
-          messages: newMsgs.map(m => ({ role:m.role, content:m.text }))
-        })
-      });
-      const data = await res.json();
-      setMsgs(p => [...p, { role:"assistant", text: data.content?.[0]?.text || "（無回應）" }]);
-    } catch {
-      setMsgs(p => [...p, { role:"assistant", text:"❌ 連線失敗，請稍後再試。" }]);
-    } finally {
-      setLoading(false);
+      );
     }
-  }
 
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 180px)" }}>
-      <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:12 }}>
-        {msgs.map((m,i) => (
-          <div key={i} style={{ alignSelf: m.role==="user"?"flex-end":"flex-start" }}>
-            <div className="chat-msg" style={{
-              background: m.role==="user" ? "linear-gradient(135deg,#2a4a8a,#1a3a7a)" : "#111f35",
-              color: m.role==="user" ? "white" : "#e2eaff",
-              whiteSpace:"pre-wrap"
-            }}>{m.text}</div>
-          </div>
-        ))}
-        {loading && (
-          <div style={{ alignSelf:"flex-start" }}>
-            <div className="chat-msg" style={{ background:"#111f35", color:"#4a6080", animation:"pulse 1.2s infinite" }}>AI 思考中...</div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-      <div style={{ display:"flex", gap:8, marginTop:12, borderTop:"1px solid #1a3a7a", paddingTop:12 }}>
-        <input value={input} onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&send()}
-          style={{ flex:1, background:"#111f35", border:"1px solid rgba(99,160,255,0.2)",
-            borderRadius:10, padding:10, color:"white", outline:"none", fontSize:13 }}
-          placeholder="例：如何讓燦坤盡快成交？" />
-        <button onClick={send} disabled={loading}
-          style={{ background:loading?"#2a3a5a":"#4f8ef7", border:"none", color:"white",
-            padding:"0 16px", borderRadius:10, cursor:loading?"not-allowed":"pointer" }}>發送</button>
-      </div>
-    </div>
-  );
-}
+    function Customers() {
+      const [modal, setModal] = useState(null);
+      const [recs, setRecs] = useState(null);
 
-// ── App ──
-function App() {
-  const [tab, setTab] = useState("dashboard");
-  const tabs = [
-    {id:"dashboard",label:"📊 儀表板"},
-    {id:"customers",label:"🏪 通路管理"},
-    {id:"products", label:"📦 產品目錄"},
-    {id:"ai",       label:"🤖 AI 助理"},
-    {id:"report",   label:"📋 銷售報告"},
-  ];
-  return (
-    <div style={{ minHeight:"100vh" }}>
-      <div style={{ padding:"12px 16px", background:"#0d1829", borderBottom:"1px solid rgba(99,160,255,0.15)",
-        display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ fontWeight:700, fontSize:18, color:"#7eb3ff" }}>⚡ SalesAI <span style={{color:"#2dd4a8"}}>Pro</span></div>
-        <div style={{ fontSize:11, color:"#4a6080", flex:1, textAlign:"center" }}>零售通路 B2B 銷售管理系統</div>
-        <div style={{ fontSize:11, color:"#2dd4a8" }}>● AI 已連線</div>
-      </div>
-      <div style={{ display:"flex", gap:8, padding:"12px", background:"#0d1829", overflowX:"auto" }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={()=>setTab(t.id)} className={`tab-btn ${tab===t.id?"active":""}`}>{t.label}</button>
-        ))}
-      </div>
-      <div style={{ padding:16, paddingBottom:40 }}>
-        {tab==="dashboard" && <Dashboard />}
-        {tab==="ai"        && <AIChat />}
-        {tab==="customers" && <div style={{textAlign:"center",marginTop:40,color:"#4a6080"}}>請在電腦版查看完整「通路管理」列表</div>}
-        {tab==="products"  && <div style={{textAlign:"center",marginTop:40,color:"#4a6080"}}>請在電腦版查看「產品目錄」</div>}
-        {tab==="report"    && (
-          <div style={{textAlign:"center",marginTop:40,color:"#4a6080",padding:20,background:"#0d1829",borderRadius:12,border:"1px solid #1a3a7a"}}>
-            📋 AI 銷售報告生成<br/>
-            <button style={{background:"#4f8ef7",border:"none",color:"white",padding:"8px 16px",borderRadius:8,marginTop:15,cursor:"pointer"}}>🚀 生成報告</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+      async function openRec(c) {
+        setModal(c); setRecs(null);
+        try {
+          const text = await callClaude([{
+            role: "user",
+            content: `根據客戶資料推薦2-3個產品。客戶：${c.name}，行業：${c.industry}，銷售階段：${c.stage}。
+產品清單：${JSON.stringify(PRODUCTS.map(p => ({ name: p.name, price: p.price })))}
+只回傳JSON，格式：{"recommendations":[{"product":"名稱","price":"價格","reason":"25字內理由"}]}`
+          }], "你是B2B銷售AI，用繁體中文回答。只輸出JSON不要其他文字。");
+          const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+          setRecs(parsed.recommendations);
+        } catch {
+          setRecs([
+            { product: "企業雲端 ERP 系統", price: "NT$ 48萬", reason: `適合${c.industry}產業核心管理需求` },
+            { product: "數據分析儀表板",    price: "NT$ 6萬",  reason: "快速掌握業務狀況，輔助決策" },
+          ]);
+        }
+      }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-</script>
+      return (
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 12 }}>
+            👥 客戶管理 <span style={{ fontSize: 11, color: "#4a6080", fontWeight: 400 }}>— 點擊 AI 推薦取得產品建議</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {CUSTOMERS.map(c => (
+              <div key={c.id} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 10, padding: 14,
+                display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <div style={{ fontFamily: "monospace", fontSize: 11, color: "#4f8ef7", minWidth: 36, paddingTop: 2 }}>{c.id}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{c.name}</div>
+                  <div style={{ fontSize: 11, color: "#4a6080" }}>{c.industry} · {c.contact}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 13, color: "#2dd4a8", fontWeight: 700 }}>{c.amount}</div>
+                  <Badge label={c.stage} />
+                  <button onClick={() => openRec(c)} style={{
+                    background: "linear-gradient(135deg,#1a2a4a,#2a3a6a)", border: "1px solid rgba(99,160,255,0.4)",
+                    borderRadius: 8, padding: "5px 10px", fontSize: 11, color: "#7eb3ff", cursor: "pointer", fontFamily: "inherit" }}>
+                    ✦ AI 推薦
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {modal && (
+            <div onClick={() => setModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200,
+              display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.2)",
+                borderRadius: 16, padding: 20, width: "100%", maxWidth: 360 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <span style={{ fontSize: 15, fontWeight: 500 }}>✦ AI 產品推薦</span>
+                  <button onClick={() => setModal(null)} style={{ background: "none", border: "none", color: "#4a6080", fontSize: 20, cursor: "pointer" }}>×</button>
+                </div>
+                <div style={{ fontSize: 12, color: "#4a6080", marginBottom: 12 }}>
+                  為 <strong style={{ color: "#e2eaff" }}>{modal.name}</strong> 推薦
+                </div>
+                {!recs ? (
+                  <div style={{ color: "#4a6080", fontSize: 13, fontStyle: "italic" }}>AI 分析中...</div>
+                ) : recs.map((r, i) => (
+                  <div key={i} style={{ background: "#111f35", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{r.product}</div>
+                    <div style={{ fontSize: 12, color: "#8da3c8", lineHeight: 1.5 }}>{r.reason}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 12, color: "#2dd4a8", marginTop: 6 }}>{r.price}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Products() {
+      return (
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 12 }}>📦 產品目錄</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {PRODUCTS.map(p => {
+              const tc = tagColor(p.tag);
+              return (
+                <div key={p.name} style={{ background: "#0d1829", border: "1px solid rgba(99,160,255,0.15)", borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                    <div>
+                      <span style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11, background: tc.bg, color: tc.color, border: `1px solid ${tc.border}` }}>{p.tag}</span>
+                      <div style={{ fontSize: 15, fontWeight: 500, marginTop: 6 }}>{p.name}</div>
+                    </div>
+                    <div style={{ fontFamily: "monospace", fontSize: 15, color: "#2dd4a8", fontWeight: 700, whiteSpace: "nowrap", marginLeft: 12 }}>{p.price}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#4a6080" }}>{p.desc}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function AIChat() {
+      const [msgs, setMsgs] = useState([
+        { role: "assistant", text: "您好！我是您的 AI 銷售助理 🤖\n\n我可以幫您：\n· 回答客戶詢問\n· 分析銷售數據\n· 推薦合適產品\n· 生成銷售報告\n\n請問有什麼我可以協助的？" }
+      ]);
+      const [input, setInput] = useState("");
+      const [loading, setLoading] = useState(false);
+      const [history, setHistory] = useState([]);
+      const bottomRef = useRef(null);
+
+      useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+
+      async function send() {
+        if (!input.trim() || loading) return;
+        const userMsg = input.trim();
+        setInput(""); setLoading(true);
+        const newHistory = [...history, { role: "user", content: userMsg }];
+        setMsgs(prev => [...prev, { role: "user", text: userMsg }, { role: "assistant", text: "" }]);
+        try {
+          const reply = await callClaudeStream(newHistory, SYSTEM_PROMPT, (partial) => {
+            setMsgs(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1] = { role: "assistant", text: partial };
+              return updated;
+            });
+          });
+          setHistory([...newHistory, { role: "assistant", content: reply }]);
+        } catch {
+          setMsgs(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: "assistant", text: "抱歉，發生錯誤，請再試一次。" };
+            return updated;
+          });
+        }
+        setLoading(false);
+      }
+
+      return (
+        <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 130px)" }}>
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingBottom: 8 }}>
+            {msgs.map((m, i) => (
+              <div key={i} style={{ maxWidth: "85%", alignSelf: m.role === "user" ? "flex-end" : "flex-start" }}>
+                <div style={{ fontSize: 10, color: "#4a6080", marginBottom: 4, textAlign: m.role === "user" ? "right" : "left" }}>
+                  {m.role === "user" ? "您" : "🤖 AI 銷售助理"}
+                </div>
+                <div style={{
+                  padding: "12px 14px",
+                  borderRadius: m.role === "user" ? "12px 4px 12px 12px" : "4px 12px 12px 12px",
+                  background: m.role === "user" ? "linear-gradient(135deg,#2a4a8a,#1a3a7a)" : "#111f35",
+                  border: m.role === "user" ? "1px solid rgba(99,160,255,0.3)" : "1px solid rgba(99,160,255,0.15)",
+                  color: m.role === "user" ? "#7eb3ff" : "#e2eaff",
+                  fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", minHeight: 20,
+                }}>
+                  {m.text || (loading && i === msgs.length - 1 && m.role === "assistant"
+                    ? <span style={{ display: "inline-block", width: 8, height: 14, background: "#4f8ef7", borderRadius: 2, animation: "blink 0.8s infinite", verticalAlign: "middle" }} />
+                    : ""
+                  )}
+                  {loading && i === msgs.length - 1 && m.role === "assistant" && m.text && (
+                    <span style={{ display: "inline-block", width: 8, height: 14, background: "#4f8ef7", borderRadius: 2, animation: "blink 0.8s infinite", verticalAlign: "middle", marginLeft: 2 }} />
+                  )}
+                </div>
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+          <div style={{ display: "flex", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(99,160,255,0.1)" }}>
+            <input
+              value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && send()}
+              placeholder="輸入您的問題..."
+              style={{ flex: 1, background: "#111f35", border: "1px solid rgba(99,160,255,0.2)", borderRadius: 10,
+                padding: "10px 14px", color: "#e2eaff", fontSize: 13, outline: "none", fontFamily: "inherit" }}
+            />
+            <button onClick={send} disabled={loading || !input.trim()} style={{
+              background: "linear-gradient(135deg,#4f8ef7,#3a6ad4)", border: "none", borderRadius: 10,
+              padding: "10px 16px", color: "white", fontSize: 13, cursor: "pointer", fontWeight: 500,
+              opacity: loading ? 0.5 : 1, fontFamily: "inherit" }}>
+              發送
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [tab, setTab] = useState("dashboard");
+      const tabs = [
+        { id: "dashboard", label: "📊 儀表板" },
+        { id: "customers", label: "👥 客戶管理" },
+        { id: "products",  label: "📦 產品目錄" },
+        { id: "ai",        label: "🤖 AI 助理" },
+      ];
+
+      return (
+        <div style={{ fontFamily: "'Noto Sans TC', sans-serif", background: "#080f1e", color: "#e2eaff", minHeight: "100vh", fontSize: 14 }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: "#0d1829",
+            borderBottom: "1px solid rgba(99,160,255,0.15)", position: "sticky", top: 0, zIndex: 100 }}>
+            <div style={{ fontFamily: "monospace", fontSize: 17, fontWeight: 700, color: "#7eb3ff" }}>
+              ⚡ SalesAI <span style={{ color: "#2dd4a8" }}>Pro</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#4a6080", flex: 1 }}>B2B 智慧銷售通路系統</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#2dd4a8" }}>
+              <div style={{ width: 7, height: 7, background: "#2dd4a8", borderRadius: "50%", animation: "pulse 2s infinite" }} />
+              AI 已連線
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 4, padding: "8px 12px", background: "#0d1829",
+            borderBottom: "1px solid rgba(99,160,255,0.1)", overflowX: "auto" }}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
+                padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, whiteSpace: "nowrap",
+                border: tab === t.id ? "1px solid rgba(99,160,255,0.35)" : "1px solid transparent",
+                background: tab === t.id ? "linear-gradient(135deg,#2a4a8a,#1a3a7a)" : "transparent",
+                color: tab === t.id ? "#7eb3ff" : "#8da3c8", fontFamily: "inherit", transition: "all 0.2s",
+              }}>{t.label}</button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div style={{ padding: 16 }}>
+            {tab === "dashboard" && <Dashboard />}
+            {tab === "customers" && <Customers />}
+            {tab === "products"  && <Products />}
+            {tab === "ai"        && <AIChat />}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
 </body>
 </html>
